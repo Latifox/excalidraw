@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excalidraw Render API Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin-bottom: 15px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            background: #4a9eed;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        button:hover {
+            background: #3a8edd;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        select, input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            border: 1px solid #eee;
+        }
+        .result img {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .error {
+            color: #ef4444;
+            background: #fee;
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .success {
+            color: #22c55e;
+            background: #efe;
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .label {
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Excalidraw Render API</h1>
+        <p class="subtitle">Test the serverless rendering API</p>
+
+        <div class="label">API Endpoint</div>
+        <input type="text" id="apiUrl" value="http://localhost:3000/api/render" style="width: 100%; margin-bottom: 20px;">
+
+        <div class="label">Excalidraw Elements JSON</div>
+        <textarea id="elementsInput" placeholder="Paste Excalidraw elements JSON here..."></textarea>
+
+        <div class="controls">
+            <select id="formatSelect">
+                <option value="png">PNG</option>
+                <option value="svg">SVG</option>
+                <option value="json">JSON</option>
+            </select>
+            
+            <select id="scaleSelect">
+                <option value="1">Scale 1x</option>
+                <option value="2" selected>Scale 2x</option>
+                <option value="3">Scale 3x</option>
+                <option value="4">Scale 4x</option>
+            </select>
+
+            <button onclick="loadExample()">Load Example</button>
+            <button onclick="renderDiagram()" id="renderBtn">Render</button>
+        </div>
+
+        <div id="result" class="result" style="display: none;">
+            <div class="label">Result</div>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const exampleElements = [
+            {"type":"cameraUpdate","width":800,"height":600,"x":50,"y":50},
+            {"type":"rectangle","id":"r1","x":100,"y":100,"width":200,"height":100,"roundness":{"type":3},"backgroundColor":"#a5d8ff","fillStyle":"solid","label":{"text":"Hello","fontSize":20}},
+            {"type":"rectangle","id":"r2","x":450,"y":100,"width":200,"height":100,"roundness":{"type":3},"backgroundColor":"#b2f2bb","fillStyle":"solid","label":{"text":"World","fontSize":20}},
+            {"type":"arrow","id":"a1","x":300,"y":150,"width":150,"height":0,"points":[[0,0],[150,0]],"endArrowhead":"arrow","startBinding":{"elementId":"r1","fixedPoint":[1,0.5]},"endBinding":{"elementId":"r2","fixedPoint":[0,0.5]}}
+        ];
+
+        function loadExample() {
+            document.getElementById('elementsInput').value = JSON.stringify(exampleElements, null, 2);
+        }
+
+        async function renderDiagram() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const elementsText = document.getElementById('elementsInput').value;
+            const format = document.getElementById('formatSelect').value;
+            const scale = parseInt(document.getElementById('scaleSelect').value);
+            const resultDiv = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            const renderBtn = document.getElementById('renderBtn');
+
+            resultContent.innerHTML = '';
+            resultDiv.style.display = 'none';
+
+            if (!elementsText.trim()) {
+                resultContent.innerHTML = '<div class="error">Please enter Excalidraw elements JSON</div>';
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            let elements;
+            try {
+                elements = JSON.parse(elementsText);
+            } catch (e) {
+                resultContent.innerHTML = `<div class="error">Invalid JSON: ${e.message}</div>`;
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            renderBtn.disabled = true;
+            renderBtn.textContent = 'Rendering...';
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        elements,
+                        appState: {
+                            viewBackgroundColor: '#ffffff',
+                            exportWithDarkMode: false
+                        },
+                        format,
+                        scale
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Render failed');
+                }
+
+                if (format === 'json') {
+                    const data = await response.json();
+                    resultContent.innerHTML = `
+                        <div class="success">Render successful!</div>
+                        <pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; overflow: auto;">${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else if (format === 'svg') {
+                    const svgText = await response.text();
+                    resultContent.innerHTML = `
+                        <div class="success">Render successful!</div>
+                        <div style="margin-top: 15px;">${svgText}</div>
+                        <button onclick="downloadResult('${format}')" style="margin-top: 10px;">Download SVG</button>
+                    `;
+                    window.lastBlob = new Blob([svgText], { type: 'image/svg+xml' });
+                } else {
+                    const blob = await response.blob();
+                    const imageUrl = URL.createObjectURL(blob);
+                    resultContent.innerHTML = `
+                        <div class="success">Render successful!</div>
+                        <img src="${imageUrl}" alt="Rendered diagram" style="margin-top: 15px;">
+                        <br>
+                        <button onclick="downloadResult('${format}')" style="margin-top: 10px;">Download PNG</button>
+                    `;
+                    window.lastBlob = blob;
+                }
+
+                resultDiv.style.display = 'block';
+
+            } catch (error) {
+                resultContent.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                resultDiv.style.display = 'block';
+            } finally {
+                renderBtn.disabled = false;
+                renderBtn.textContent = 'Render';
+            }
+        }
+
+        function downloadResult(format) {
+            if (!window.lastBlob) return;
+            
+            const url = URL.createObjectURL(window.lastBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `excalidraw-diagram.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Load example on page load
+        window.onload = () => loadExample();
+    </script>
+</body>
+</html>
